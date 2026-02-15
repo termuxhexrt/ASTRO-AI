@@ -1,27 +1,25 @@
 import os
-from mistralai.client import MistralClient
-from mistralai.models.chat_completion import ChatMessage
+from mistralai import Mistral
 
 class AIClient:
     def __init__(self, api_key):
-        self.client = MistralClient(api_key=api_key)
+        self.client = Mistral(api_key=api_key)
         self.model = "mistral-large-latest"
         self.messages = []
 
     def set_system_prompt(self, prompt):
-        self.messages = [ChatMessage(role="system", content=prompt)]
+        self.messages = [{"role": "system", "content": prompt}]
 
     def chat(self, user_input):
-        self.messages.append(ChatMessage(role="user", content=user_input))
+        self.messages.append({"role": "user", "content": user_input})
         
-        # In the future, we will define tools here for function calling
-        response = self.client.chat(
+        response = self.client.chat.complete(
             model=self.model,
             messages=self.messages
         )
         
         reply = response.choices[0].message.content
-        self.messages.append(ChatMessage(role="assistant", content=reply))
+        self.messages.append({"role": "assistant", "content": reply})
         return reply
 
     def get_structured_command(self, user_input):
@@ -29,13 +27,16 @@ class AIClient:
         Enhanced version to specifically ask for a shell command.
         """
         prompt = f"Extract or generate the exact Kali Linux command for this task: {user_input}. Respond ONLY with the command string."
-        self.messages.append(ChatMessage(role="user", content=prompt))
         
-        response = self.client.chat(
+        # We don't want to pollute long-term memory with every command extraction, but for now simple append
+        temp_messages = self.messages + [{"role": "user", "content": prompt}]
+        
+        response = self.client.chat.complete(
             model=self.model,
-            messages=self.messages
+            messages=temp_messages
         )
         
-        reply = response.choices[0].message.content.strip().strip('`')
-        self.messages.append(ChatMessage(role="assistant", content=reply))
+        reply = response.choices[0].message.content.strip().strip('`').strip()
+        # Adding to memory so the AI knows what command it suggested for next analysis
+        self.messages.append({"role": "assistant", "content": reply})
         return reply
